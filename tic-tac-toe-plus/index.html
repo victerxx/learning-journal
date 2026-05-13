@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Tic-Tac-Toe Plus</title>
+<style>
+  :root {
+    --bg: #0f1226;
+    --panel: #1a1f3a;
+    --panel-2: #232a4d;
+    --accent: #6ee7ff;
+    --accent-2: #ffb86b;
+    --x: #ff6b9d;
+    --o: #6ee7ff;
+    --muted: #8b91b8;
+    --text: #f1f3ff;
+    --good: #7af0a8;
+    --bad: #ff7a7a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: radial-gradient(1200px 800px at 20% -10%, #2a1f4d 0%, transparent 60%),
+                radial-gradient(900px 600px at 110% 110%, #1f4d4a 0%, transparent 60%),
+                var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 16px 16px 48px;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  .subtitle { color: var(--muted); font-size: 12px; }
+
+  .status {
+    background: var(--panel);
+    border: 1px solid #2a3160;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .turn-badge {
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+  }
+  .turn-X { background: rgba(255,107,157,0.15); color: var(--x); }
+  .turn-O { background: rgba(110,231,255,0.15); color: var(--o); }
+  .status-msg { font-size: 14px; color: var(--text); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    aspect-ratio: 1 / 1;
+    background: var(--panel);
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid #2a3160;
+  }
+  .cell {
+    background: var(--panel-2);
+    border: 1px solid #2f376b;
+    border-radius: 10px;
+    font-size: 48px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.06s ease, background 0.15s ease, box-shadow 0.15s ease;
+    color: var(--text);
+  }
+  .cell:active { transform: scale(0.97); }
+  .cell.X { color: var(--x); }
+  .cell.O { color: var(--o); }
+  .cell.win {
+    background: rgba(122,240,168,0.18);
+    box-shadow: 0 0 0 2px var(--good) inset;
+  }
+  .cell.challengeable {
+    box-shadow: 0 0 0 2px var(--accent-2) inset;
+  }
+  .cell[disabled] {
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  button.btn {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #2f376b;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.06s ease;
+  }
+  button.btn:hover { background: #2b3464; }
+  button.btn:active { transform: scale(0.98); }
+  button.btn.primary {
+    background: linear-gradient(135deg, #4d6cff, #7a4dff);
+    border-color: transparent;
+  }
+  button.btn.ghost {
+    background: transparent;
+  }
+
+  .rules {
+    margin-top: 18px;
+    background: var(--panel);
+    border: 1px solid #2a3160;
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .rules summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .rules ul { margin: 8px 0 0 18px; padding: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .rules code { background: #2a3160; padding: 1px 6px; border-radius: 6px; color: var(--text); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(7, 9, 22, 0.7);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 16px;
+    z-index: 50;
+    backdrop-filter: blur(4px);
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid #2a3160;
+    border-radius: 14px;
+    padding: 18px;
+    max-width: 440px;
+    width: 100%;
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 18px; }
+  .modal p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+
+  .rps-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .rps-btn {
+    background: var(--panel-2);
+    border: 1px solid #2f376b;
+    border-radius: 10px;
+    padding: 10px 4px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .rps-btn .glyph { font-size: 22px; }
+  .rps-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .rps-btn.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(110,231,255,0.25) inset;
+  }
+
+  .rps-result {
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    font-size: 14px;
+  }
+  .rps-result .row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 4px 0;
+  }
+  .rps-result .verdict { font-weight: 700; margin-top: 6px; }
+  .verdict.win { color: var(--good); }
+  .verdict.lose { color: var(--bad); }
+  .verdict.tie { color: var(--accent-2); }
+
+  .coin {
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    margin: 8px auto;
+    background: radial-gradient(circle at 30% 30%, #ffe7a8, #b88b2c);
+    color: #4a2f00;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 22px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .coin.flipping { animation: flip 0.9s ease-in-out; }
+  @keyframes flip {
+    0%   { transform: rotateY(0deg)   scale(1); }
+    50%  { transform: rotateY(540deg) scale(1.1); }
+    100% { transform: rotateY(1080deg) scale(1); }
+  }
+
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .score {
+    display: flex; gap: 10px;
+  }
+  .score span b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Tic-Tac-Toe Plus</h1>
+    <span class="subtitle">RPS-Lizard-Spock + coin flips</span>
+  </header>
+
+  <div class="status">
+    <span id="turnBadge" class="turn-badge turn-X">X</span>
+    <div>
+      <div id="statusMsg" class="status-msg">Flipping the coin to start…</div>
+      <div id="hint" class="hint">Tap an empty cell to place. Tap an opponent's cell to challenge.</div>
+    </div>
+  </div>
+
+  <div id="board" class="board" aria-label="Game board"></div>
+
+  <div class="controls">
+    <button class="btn primary" id="newGameBtn">New Game</button>
+    <button class="btn ghost" id="resetScoreBtn">Reset Score</button>
+  </div>
+
+  <div class="footer-row">
+    <div class="score">
+      <span>X: <b id="scoreX">0</b></span>
+      <span>O: <b id="scoreO">0</b></span>
+      <span>Draws: <b id="scoreD">0</b></span>
+    </div>
+    <span id="turnsLabel">Turn 0</span>
+  </div>
+
+  <details class="rules">
+    <summary>Rules</summary>
+    <ul>
+      <li><b>Start:</b> a coin flip decides who goes first.</li>
+      <li><b>Normal turn:</b> tap an empty square to place your mark.</li>
+      <li><b>Steal:</b> tap an opponent's square to challenge them to RPS-Lizard-Spock. If you win, the square becomes yours. If you lose, the square stays and you forfeit your turn.</li>
+      <li><b>Tie on RPS:</b> a coin flip decides the winner (no replays).</li>
+      <li><b>RPS rules:</b> Scissors cuts Paper, Paper covers Rock, Rock crushes Lizard, Lizard poisons Spock, Spock smashes Scissors, Scissors decapitates Lizard, Lizard eats Paper, Paper disproves Spock, Spock vaporizes Rock, Rock crushes Scissors.</li>
+      <li><b>Win:</b> three in a row, column, or diagonal. Full board with no winner is a draw.</li>
+    </ul>
+  </details>
+</div>
+
+<!-- Coin flip modal -->
+<div class="modal-backdrop" id="coinModal">
+  <div class="modal">
+    <h2 id="coinTitle">Coin flip</h2>
+    <p id="coinDesc">Heads = X starts, Tails = O starts</p>
+    <div class="coin" id="coinFace">?</div>
+    <p id="coinResult" style="text-align:center; font-weight:700; min-height:18px;"></p>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn primary" id="coinOkBtn" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- RPS challenge modal -->
+<div class="modal-backdrop" id="rpsModal">
+  <div class="modal">
+    <h2 id="rpsTitle">Challenge!</h2>
+    <p id="rpsDesc">Pick your move.</p>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:4px;">
+      <span id="rpsActorLabel"></span>
+    </div>
+    <div class="rps-grid" id="rpsActorGrid"></div>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:4px;">
+      <span id="rpsDefenderLabel"></span>
+    </div>
+    <div class="rps-grid" id="rpsDefenderGrid"></div>
+    <div class="rps-result" id="rpsResult" style="display:none;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+      <button class="btn primary" id="rpsOkBtn" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Game state ----------
+  const state = {
+    board: Array(9).fill(null),
+    turn: 'X',
+    over: false,
+    turnNumber: 0,
+    score: { X: 0, O: 0, D: 0 },
+    pendingChallenge: null, // { attacker, defender, cellIdx }
+  };
+
+  const RPS_MOVES = ['rock', 'paper', 'scissors', 'lizard', 'spock'];
+  const RPS_GLYPH = {
+    rock: 'Rock',
+    paper: 'Paper',
+    scissors: 'Scissors',
+    lizard: 'Lizard',
+    spock: 'Spock',
+  };
+  // What each move beats
+  const BEATS = {
+    rock:     ['scissors', 'lizard'],
+    paper:    ['rock', 'spock'],
+    scissors: ['paper', 'lizard'],
+    lizard:   ['spock', 'paper'],
+    spock:    ['scissors', 'rock'],
+  };
+
+  const WIN_LINES = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6],
+  ];
+
+  // ---------- DOM ----------
+  const boardEl = document.getElementById('board');
+  const turnBadge = document.getElementById('turnBadge');
+  const statusMsg = document.getElementById('statusMsg');
+  const hint = document.getElementById('hint');
+  const turnsLabel = document.getElementById('turnsLabel');
+  const scoreX = document.getElementById('scoreX');
+  const scoreO = document.getElementById('scoreO');
+  const scoreD = document.getElementById('scoreD');
+
+  const coinModal = document.getElementById('coinModal');
+  const coinFace = document.getElementById('coinFace');
+  const coinResult = document.getElementById('coinResult');
+  const coinTitle = document.getElementById('coinTitle');
+  const coinDesc = document.getElementById('coinDesc');
+  const coinOkBtn = document.getElementById('coinOkBtn');
+
+  const rpsModal = document.getElementById('rpsModal');
+  const rpsTitle = document.getElementById('rpsTitle');
+  const rpsActorLabel = document.getElementById('rpsActorLabel');
+  const rpsDefenderLabel = document.getElementById('rpsDefenderLabel');
+  const rpsActorGrid = document.getElementById('rpsActorGrid');
+  const rpsDefenderGrid = document.getElementById('rpsDefenderGrid');
+  const rpsResult = document.getElementById('rpsResult');
+  const rpsOkBtn = document.getElementById('rpsOkBtn');
+
+  document.getElementById('newGameBtn').addEventListener('click', () => startNewGame());
+  document.getElementById('resetScoreBtn').addEventListener('click', () => {
+    state.score = { X: 0, O: 0, D: 0 };
+    renderScore();
+  });
+
+  // ---------- Render ----------
+  function renderBoard(winLine = null) {
+    boardEl.innerHTML = '';
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('button');
+      cell.className = 'cell';
+      const v = state.board[i];
+      if (v) cell.classList.add(v);
+      if (winLine && winLine.includes(i)) cell.classList.add('win');
+      cell.textContent = v || '';
+      cell.dataset.idx = i;
+      cell.addEventListener('click', onCellClick);
+      if (state.over) cell.setAttribute('disabled', 'true');
+      boardEl.appendChild(cell);
+    }
+  }
+
+  function renderTurn() {
+    turnBadge.textContent = state.turn;
+    turnBadge.className = 'turn-badge turn-' + state.turn;
+    turnsLabel.textContent = 'Turn ' + state.turnNumber;
+  }
+
+  function renderScore() {
+    scoreX.textContent = state.score.X;
+    scoreO.textContent = state.score.O;
+    scoreD.textContent = state.score.D;
+  }
+
+  function setStatus(msg, hintText) {
+    statusMsg.textContent = msg;
+    if (hintText !== undefined) hint.textContent = hintText;
+  }
+
+  // ---------- Game flow ----------
+  function startNewGame() {
+    state.board = Array(9).fill(null);
+    state.over = false;
+    state.turnNumber = 0;
+    state.pendingChallenge = null;
+    renderBoard();
+    renderScore();
+    renderTurn();
+    runCoinFlip({
+      title: 'Coin flip — who goes first?',
+      desc: 'Heads = X starts. Tails = O starts.',
+    }).then((result) => {
+      state.turn = (result === 'heads') ? 'X' : 'O';
+      renderTurn();
+      setStatus(state.turn + " goes first.", "Tap an empty cell to place. Tap an opponent's cell to challenge.");
+    });
+  }
+
+  function onCellClick(e) {
+    if (state.over) return;
+    if (coinModal.classList.contains('open') || rpsModal.classList.contains('open')) return;
+    const idx = parseInt(e.currentTarget.dataset.idx, 10);
+    const occupant = state.board[idx];
+    if (!occupant) {
+      // Normal placement
+      placeMark(idx, state.turn);
+      finishTurn();
+    } else if (occupant !== state.turn) {
+      // Challenge to steal
+      startChallenge(idx);
+    } else {
+      // Tapped own cell - ignore
+    }
+  }
+
+  function placeMark(idx, mark) {
+    state.board[idx] = mark;
+  }
+
+  function finishTurn() {
+    state.turnNumber += 1;
+    const winLine = findWinLine();
+    if (winLine) {
+      const winner = state.board[winLine[0]];
+      state.over = true;
+      state.score[winner] += 1;
+      renderBoard(winLine);
+      renderScore();
+      setStatus(winner + ' wins! ', 'Tap New Game to play again.');
+      turnBadge.textContent = winner;
+      turnBadge.className = 'turn-badge turn-' + winner;
+      return;
+    }
+    if (state.board.every(c => c)) {
+      state.over = true;
+      state.score.D += 1;
+      renderBoard();
+      renderScore();
+      setStatus("Draw — board is full.", 'Tap New Game to play again.');
+      return;
+    }
+    state.turn = state.turn === 'X' ? 'O' : 'X';
+    renderBoard();
+    renderTurn();
+    setStatus(state.turn + "'s turn.", "Tap an empty cell to place. Tap an opponent's cell to challenge.");
+  }
+
+  function findWinLine() {
+    for (const line of WIN_LINES) {
+      const [a, b, c] = line;
+      if (state.board[a] && state.board[a] === state.board[b] && state.board[a] === state.board[c]) {
+        return line;
+      }
+    }
+    return null;
+  }
+
+  // ---------- Challenge / RPS ----------
+  function startChallenge(idx) {
+    const attacker = state.turn;
+    const defender = attacker === 'X' ? 'O' : 'X';
+    state.pendingChallenge = { attacker, defender, idx, attackerMove: null, defenderMove: null };
+    openRpsModal();
+  }
+
+  function openRpsModal() {
+    const { attacker, defender, idx } = state.pendingChallenge;
+    rpsTitle.textContent = attacker + " challenges " + defender + " for cell #" + (idx + 1);
+    rpsActorLabel.textContent = attacker + " (attacker) — pick your move:";
+    rpsDefenderLabel.textContent = defender + " (defender) — pick your move:";
+    buildRpsGrid(rpsActorGrid, 'attacker');
+    buildRpsGrid(rpsDefenderGrid, 'defender');
+    rpsResult.style.display = 'none';
+    rpsResult.innerHTML = '';
+    rpsOkBtn.disabled = true;
+    rpsOkBtn.onclick = closeRpsModal;
+    rpsModal.classList.add('open');
+  }
+
+  function buildRpsGrid(container, role) {
+    container.innerHTML = '';
+    for (const move of RPS_MOVES) {
+      const btn = document.createElement('button');
+      btn.className = 'rps-btn';
+      btn.innerHTML = '<span class="glyph">' + RPS_GLYPH[move] + '</span>';
+      btn.addEventListener('click', () => onRpsPick(role, move, container));
+      container.appendChild(btn);
+    }
+  }
+
+  function onRpsPick(role, move, container) {
+    // visually mark selection
+    [...container.children].forEach(c => c.classList.remove('selected'));
+    const idx = RPS_MOVES.indexOf(move);
+    container.children[idx].classList.add('selected');
+
+    if (role === 'attacker') state.pendingChallenge.attackerMove = move;
+    else state.pendingChallenge.defenderMove = move;
+
+    if (state.pendingChallenge.attackerMove && state.pendingChallenge.defenderMove) {
+      // disable further picks
+      [...rpsActorGrid.children, ...rpsDefenderGrid.children].forEach(b => b.disabled = true);
+      resolveRps();
+    }
+  }
+
+  function resolveRps() {
+    const { attacker, defender, idx, attackerMove, defenderMove } = state.pendingChallenge;
+    let outcome; // 'attacker' | 'defender' | 'tie'
+    if (attackerMove === defenderMove) outcome = 'tie';
+    else if (BEATS[attackerMove].includes(defenderMove)) outcome = 'attacker';
+    else outcome = 'defender';
+
+    rpsResult.style.display = 'block';
+    let html = '';
+    html += '<div class="row"><span>' + attacker + ' (attacker)</span><b>' + RPS_GLYPH[attackerMove] + '</b></div>';
+    html += '<div class="row"><span>' + defender + ' (defender)</span><b>' + RPS_GLYPH[defenderMove] + '</b></div>';
+
+    if (outcome === 'tie') {
+      html += '<div class="verdict tie">Tie — flipping a coin to decide…</div>';
+      rpsResult.innerHTML = html;
+      // After short delay, do a coin flip
+      setTimeout(() => {
+        closeRpsModalSilently();
+        runCoinFlip({
+          title: 'Tie-breaker coin flip',
+          desc: 'Heads = ' + attacker + ' (attacker) wins. Tails = ' + defender + ' (defender) wins.',
+        }).then((coin) => {
+          const winnerSide = coin === 'heads' ? 'attacker' : 'defender';
+          applyChallengeOutcome(winnerSide, attackerMove + ' vs ' + defenderMove + ' (coin flip: ' + coin + ')');
+        });
+      }, 700);
+      return;
+    }
+
+    const verdictClass = outcome === 'attacker' ? 'win' : 'lose';
+    const verdictText = outcome === 'attacker'
+      ? attacker + ' wins the challenge!'
+      : defender + ' defends the cell!';
+    html += '<div class="verdict ' + verdictClass + '">' + verdictText + '</div>';
+    rpsResult.innerHTML = html;
+    rpsOkBtn.disabled = false;
+    rpsOkBtn.onclick = () => {
+      closeRpsModalSilently();
+      applyChallengeOutcome(outcome, attackerMove + ' vs ' + defenderMove);
+    };
+  }
+
+  function applyChallengeOutcome(winnerSide, summary) {
+    const { attacker, defender, idx } = state.pendingChallenge;
+    if (winnerSide === 'attacker') {
+      state.board[idx] = attacker;
+      setStatus(attacker + ' stole cell #' + (idx + 1) + ' (' + summary + ').', '');
+    } else {
+      // defender keeps the cell, attacker forfeits the turn
+      setStatus(defender + ' kept cell #' + (idx + 1) + ' (' + summary + '). ' + attacker + ' loses their turn.', '');
+    }
+    state.pendingChallenge = null;
+    finishTurn();
+  }
+
+  function closeRpsModal() {
+    rpsModal.classList.remove('open');
+  }
+  function closeRpsModalSilently() {
+    rpsModal.classList.remove('open');
+  }
+
+  // ---------- Coin flip ----------
+  function runCoinFlip({ title, desc }) {
+    return new Promise((resolve) => {
+      coinTitle.textContent = title;
+      coinDesc.textContent = desc;
+      coinResult.textContent = '';
+      coinFace.textContent = '?';
+      coinOkBtn.disabled = true;
+      coinModal.classList.add('open');
+
+      // Animate
+      coinFace.classList.remove('flipping');
+      // reflow to restart animation
+      void coinFace.offsetWidth;
+      coinFace.classList.add('flipping');
+
+      const result = Math.random() < 0.5 ? 'heads' : 'tails';
+      setTimeout(() => {
+        coinFace.textContent = result === 'heads' ? 'H' : 'T';
+        coinResult.textContent = result.toUpperCase();
+        coinOkBtn.disabled = false;
+        coinOkBtn.onclick = () => {
+          coinModal.classList.remove('open');
+          resolve(result);
+        };
+      }, 900);
+    });
+  }
+
+  // ---------- Boot ----------
+  renderBoard();
+  renderScore();
+  renderTurn();
+  startNewGame();
+})();
+</script>
+</body>
+</html>
