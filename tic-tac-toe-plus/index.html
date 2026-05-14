@@ -328,6 +328,12 @@
   }
   .modal h2 { margin: 0 0 6px; font-size: 18px; }
   .modal p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  .coin-big {
+    text-align: center; margin: 8px 0 12px;
+    font-size: 18px; font-weight: 700; color: var(--text);
+    line-height: 1.4;
+  }
+  .coin-big div { margin: 2px 0; }
 
   .rps-grid {
     display: grid;
@@ -587,10 +593,10 @@
 <!-- Coin flip modal -->
 <div class="modal-backdrop" id="coinModal">
   <div class="modal">
-    <h2 id="coinTitle">Coin flip</h2>
-    <p id="coinDesc">Heads = X starts, Tails = O starts</p>
+    <h2 id="coinTitle" style="text-align:center;">Coin flip</h2>
+    <div class="coin-big" id="coinDesc"></div>
     <div class="coin" id="coinFace">?</div>
-    <p id="coinResult" style="text-align:center; font-weight:700; min-height:18px;"></p>
+    <div class="coin-big" id="coinResult" style="min-height:52px;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button class="btn primary" id="coinOkBtn" disabled>Continue</button>
     </div>
@@ -913,9 +919,9 @@
     setStatus('Flipping the coin…', '');
     runCoinFlip({
       title: `Round ${match.round} — Coin flip`,
-      desc: `Heads = ${config.nameX} (X) starts. Tails = ${config.nameO} (O) starts.`,
       headsWinner: config.nameX,
       tailsWinner: config.nameO,
+      tagline: 'and goes first.',
     }).then((result) => {
       round.turn = (result === 'heads') ? 'X' : 'O';
       logEvent('coinFlip', { result, firstPlayer: round.turn });
@@ -1216,9 +1222,9 @@
       setTimeout(() => {
         runCoinFlip({
           title: 'Tie-breaker coin flip',
-          desc: `Heads = ${displayName(pc.attacker)} (attacker) wins. Tails = ${displayName(pc.defender)} (defender) wins.`,
           headsWinner: displayName(pc.attacker),
           tailsWinner: displayName(pc.defender),
+          tagline: 'and wins the cell.',
         }).then((coin) => {
           const winnerSide = coin === 'heads' ? 'attacker' : 'defender';
           logEvent('rpsTieCoinFlip', { coin, winner: winnerSide });
@@ -1277,10 +1283,12 @@
 
   // ============== Coin flip ==============
   const coinModal = $('coinModal');
-  function runCoinFlip({ title, desc, headsWinner, tailsWinner }) {
+  function runCoinFlip({ title, headsWinner, tailsWinner, tagline }) {
     return new Promise((resolve) => {
       $('coinTitle').textContent = title;
-      $('coinDesc').textContent = desc;
+      $('coinDesc').innerHTML =
+        `<div>Heads = ${escapeHtml(headsWinner)}</div>` +
+        `<div>Tails = ${escapeHtml(tailsWinner)}</div>`;
       $('coinResult').innerHTML = '';
       const face = $('coinFace');
       face.textContent = '?';
@@ -1294,12 +1302,9 @@
         face.textContent = result === 'heads' ? 'H' : 'T';
         const winner = result === 'heads' ? headsWinner : tailsWinner;
         const label = result.toUpperCase();
-        if (winner) {
-          $('coinResult').innerHTML =
-            `${label} — <b>${escapeHtml(winner)}</b> wins the coin flip.`;
-        } else {
-          $('coinResult').textContent = label;
-        }
+        $('coinResult').innerHTML =
+          `<div>${label} — ${escapeHtml(winner)} wins the coin flip.</div>` +
+          (tagline ? `<div>${escapeHtml(tagline)}</div>` : '');
         $('coinOkBtn').disabled = false;
         $('coinOkBtn').onclick = () => {
           closeModal(coinModal);
