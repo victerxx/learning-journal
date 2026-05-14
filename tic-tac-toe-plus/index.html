@@ -517,6 +517,7 @@
       <div class="board-col">
         <div id="board" class="board" aria-label="Game board"></div>
         <div class="controls" id="matchControls" style="margin-top: 12px;">
+          <button class="btn primary" id="continueRoundBtn" style="display:none;">Continue →</button>
           <button class="btn ghost" id="endMatchBtn">End Match</button>
         </div>
         <div class="controls" id="matchOverControls" style="margin-top: 12px; display:none;">
@@ -599,17 +600,6 @@
     <div class="coin-big" id="coinResult" style="min-height:52px;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button class="btn primary" id="coinOkBtn" disabled>Continue</button>
-    </div>
-  </div>
-</div>
-
-<!-- Round over modal -->
-<div class="modal-backdrop" id="roundModal">
-  <div class="modal">
-    <h2 id="roundTitle" style="text-align:center;">Round complete</h2>
-    <div class="coin-big" id="roundBody"></div>
-    <div style="display:flex; gap:8px; justify-content:flex-end;">
-      <button class="btn primary" id="roundOkBtn">Next round →</button>
     </div>
   </div>
 </div>
@@ -912,6 +902,7 @@
     round.gameId = newId();
     round.startedAt = Date.now();
     round.events = [];
+    $('continueRoundBtn').style.display = 'none';
     logEvent('roundStart', { round: match.round, rulesUnlocked: [...match.rulesUnlocked] });
     updateScoreboard();
     renderBoard();
@@ -1044,14 +1035,20 @@
       return;
     }
 
-    // Round summary modal then next round
     const title = winner
       ? `${displayName(winner)} wins round ${match.round}`
       : `Round ${match.round} — Draw`;
     const body = winner
-      ? `Score: ${config.nameX} ${match.score.X} · ${config.nameO} ${match.score.O}`
-      : `Nobody scored. Score remains ${config.nameX} ${match.score.X} · ${config.nameO} ${match.score.O}.`;
-    openRoundModal(title, body, () => startRound());
+      ? `Score: ${escapeHtml(config.nameX)} ${match.score.X} · ${escapeHtml(config.nameO)} ${match.score.O}`
+      : `Nobody scored. Score remains ${escapeHtml(config.nameX)} ${match.score.X} · ${escapeHtml(config.nameO)} ${match.score.O}.`;
+    setStatus(`<b>${escapeHtml(title)}</b><br/>${body}`, 'Tap Continue to start the next round.');
+    const contBtn = $('continueRoundBtn');
+    contBtn.style.display = '';
+    contBtn.onclick = () => {
+      contBtn.style.display = 'none';
+      contBtn.onclick = null;
+      startRound();
+    };
   }
 
   function findWinLine(board) {
@@ -1314,15 +1311,6 @@
     });
   }
 
-  // ============== Round modal ==============
-  const roundModal = $('roundModal');
-  function openRoundModal(title, body, onContinue) {
-    $('roundTitle').textContent = title;
-    $('roundBody').textContent = body;
-    openModal(roundModal);
-    $('roundOkBtn').onclick = () => { closeModal(roundModal); onContinue(); };
-  }
-
   // ============== AI ==============
   function maybeAiTurn() {
     if (!isAiTurn()) return;
@@ -1432,7 +1420,7 @@
   function openModal(el) { el.classList.add('open'); }
   function closeModal(el) { el.classList.remove('open'); }
   function anyModalOpen() {
-    return [coinModal, roundModal, briefModal]
+    return [coinModal, briefModal]
       .some(m => m && m.classList.contains('open'));
   }
 
