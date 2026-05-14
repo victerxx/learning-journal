@@ -510,8 +510,20 @@
     <div class="match-layout">
       <div class="board-col">
         <div id="board" class="board" aria-label="Game board"></div>
-        <div class="controls" style="margin-top: 12px;">
+        <div class="controls" id="matchControls" style="margin-top: 12px;">
           <button class="btn ghost" id="endMatchBtn">End Match</button>
+        </div>
+        <div class="controls" id="matchOverControls" style="margin-top: 12px; display:none;">
+          <button class="btn primary" id="rematchBtn">Rematch</button>
+          <button class="btn ghost" id="backToSetupBtn">Setup Screen</button>
+        </div>
+        <div class="panel" id="matchOverSummaryPanel" style="display:none; margin-top: 12px;">
+          <h2>Match Over</h2>
+          <div id="matchOverSummary" style="font-size:15px; line-height:1.5;"></div>
+        </div>
+        <div class="panel" id="metricsPanel" style="display:none; margin-top: 12px;">
+          <h2>Your Progress</h2>
+          <div id="metricsBody" style="font-size:14px; line-height:1.6;"></div>
         </div>
         <div class="footer-row">
           <span id="turnsLabel">Turn 0</span>
@@ -554,22 +566,6 @@
           </div>
         </div>
       </aside>
-    </div>
-  </section>
-
-  <!-- ============== MATCH OVER SCREEN ============== -->
-  <section id="matchOverScreen" class="screen">
-    <div class="panel">
-      <h2>Match Over</h2>
-      <div id="matchOverSummary" style="font-size:16px; line-height:1.5;"></div>
-    </div>
-    <div class="panel" id="metricsPanel" style="display:none;">
-      <h2>Your Progress</h2>
-      <div id="metricsBody" style="font-size:14px; line-height:1.6;"></div>
-    </div>
-    <div class="controls">
-      <button class="btn primary" id="rematchBtn">Rematch</button>
-      <button class="btn ghost" id="backToSetupBtn">Setup Screen</button>
     </div>
   </section>
 
@@ -686,7 +682,6 @@
   const screens = {
     setup: $('setupScreen'),
     match: $('matchScreen'),
-    over:  $('matchOverScreen'),
     profile: $('profileScreen'),
   };
   function showScreen(name) {
@@ -866,6 +861,10 @@
     match.started = true;
     match.matchId = newId();
     match.history = [];
+    $('matchControls').style.display = '';
+    $('matchOverControls').style.display = 'none';
+    $('matchOverSummaryPanel').style.display = 'none';
+    $('metricsPanel').style.display = 'none';
     updateScoreboard();
     updateModePill();
     showScreen('match');
@@ -876,7 +875,9 @@
     match.started = false;
     saveMatchToProfiles();
     renderMatchOver(reason);
-    showScreen('over');
+    $('matchControls').style.display = 'none';
+    $('matchOverControls').style.display = '';
+    $('matchOverSummaryPanel').style.display = '';
   }
 
   function updateModePill() {
@@ -913,6 +914,8 @@
     runCoinFlip({
       title: `Round ${match.round} — Coin flip`,
       desc: `Heads = ${config.nameX} (X) starts. Tails = ${config.nameO} (O) starts.`,
+      headsWinner: config.nameX,
+      tailsWinner: config.nameO,
     }).then((result) => {
       round.turn = (result === 'heads') ? 'X' : 'O';
       logEvent('coinFlip', { result, firstPlayer: round.turn });
@@ -1214,6 +1217,8 @@
         runCoinFlip({
           title: 'Tie-breaker coin flip',
           desc: `Heads = ${displayName(pc.attacker)} (attacker) wins. Tails = ${displayName(pc.defender)} (defender) wins.`,
+          headsWinner: displayName(pc.attacker),
+          tailsWinner: displayName(pc.defender),
         }).then((coin) => {
           const winnerSide = coin === 'heads' ? 'attacker' : 'defender';
           logEvent('rpsTieCoinFlip', { coin, winner: winnerSide });
@@ -1272,11 +1277,11 @@
 
   // ============== Coin flip ==============
   const coinModal = $('coinModal');
-  function runCoinFlip({ title, desc }) {
+  function runCoinFlip({ title, desc, headsWinner, tailsWinner }) {
     return new Promise((resolve) => {
       $('coinTitle').textContent = title;
       $('coinDesc').textContent = desc;
-      $('coinResult').textContent = '';
+      $('coinResult').innerHTML = '';
       const face = $('coinFace');
       face.textContent = '?';
       $('coinOkBtn').disabled = true;
@@ -1287,7 +1292,14 @@
       const result = Math.random() < 0.5 ? 'heads' : 'tails';
       setTimeout(() => {
         face.textContent = result === 'heads' ? 'H' : 'T';
-        $('coinResult').textContent = result.toUpperCase();
+        const winner = result === 'heads' ? headsWinner : tailsWinner;
+        const label = result.toUpperCase();
+        if (winner) {
+          $('coinResult').innerHTML =
+            `${label} — <b>${escapeHtml(winner)}</b> wins the coin flip.`;
+        } else {
+          $('coinResult').textContent = label;
+        }
         $('coinOkBtn').disabled = false;
         $('coinOkBtn').onclick = () => {
           closeModal(coinModal);
