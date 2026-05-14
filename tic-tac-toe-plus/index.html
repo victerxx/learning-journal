@@ -69,6 +69,27 @@
     font-size: 14px;
     min-width: 0;
   }
+  input[type="text"][readonly] { color: var(--muted); }
+
+  .player-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 0;
+  }
+  .mark-label {
+    font-size: 30px; font-weight: 800;
+    width: 40px; text-align: center; line-height: 1;
+    flex: 0 0 auto;
+  }
+  .mark-label.mark-x { color: var(--x); }
+  .mark-label.mark-o { color: var(--o); }
+  .prev-picker {
+    flex: 0 0 auto; width: auto; max-width: 140px;
+    padding: 9px 8px; font-size: 13px;
+  }
+  .swap-row {
+    display: flex; justify-content: center; padding: 4px 0;
+  }
+  .swap-row .btn { padding: 6px 14px; font-size: 13px; }
   input[type="text"]:focus, select:focus, input[type="number"]:focus {
     outline: none; border-color: var(--accent);
   }
@@ -397,16 +418,18 @@
 
     <div class="panel">
       <h2>Players</h2>
-      <label class="row">
-        <span class="lbl">X plays as</span>
+      <div class="player-row">
+        <span class="mark-label mark-x">X</span>
         <input id="nameX" type="text" maxlength="20" value="Player 1" />
-      </label>
-      <label class="row">
-        <span class="lbl">O plays as</span>
+        <select id="prevX" class="prev-picker" aria-label="Previous players (X)" style="display:none;"></select>
+      </div>
+      <div class="swap-row">
+        <button class="btn ghost" id="swapXOBtn">⇅ Swap X / O</button>
+      </div>
+      <div class="player-row">
+        <span class="mark-label mark-o">O</span>
         <input id="nameO" type="text" maxlength="20" value="Player 2" />
-      </label>
-      <div class="controls" style="margin-top: 6px;">
-        <button class="btn ghost" id="swapXOBtn">Swap X / O</button>
+        <select id="prevO" class="prev-picker" aria-label="Previous players (O)" style="display:none;"></select>
       </div>
     </div>
 
@@ -620,12 +643,14 @@
     [0,4,8],[2,4,6],
   ];
   const PROFILE_PREFIX = 'ttp.profile.';
+  const LAST_PLAYER_KEY = 'ttp.lastPlayer';
   const MEASUREMENT_WINDOW = 20;
 
   // ============== State ==============
   const config = {
     mode: '2p',            // '2p' | '1p'
     aiDifficulty: 'medium',
+    aiMark: 'O',           // which mark the AI plays in 1p mode
     nameX: 'Player 1',
     nameO: 'Player 2',
     challengeMode: false,
@@ -673,9 +698,80 @@
   const aiPanel = $('aiPanel');
   const nameXInput = $('nameX');
   const nameOInput = $('nameO');
+  const prevXPicker = $('prevX');
+  const prevOPicker = $('prevO');
   const challengeSeg = $('challengeSeg');
   const challengeHelp = $('challengeHelp');
   const matchTargetInput = $('matchTarget');
+
+  function getKnownPlayers() {
+    const names = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(PROFILE_PREFIX)) {
+        names.push(key.slice(PROFILE_PREFIX.length));
+      }
+    }
+    return names.sort((a, b) => a.localeCompare(b));
+  }
+
+  function populatePrevPickers() {
+    const players = getKnownPlayers();
+    [prevXPicker, prevOPicker].forEach(sel => {
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      if (!players.length) { sel.style.display = 'none'; return; }
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Previous players';
+      sel.appendChild(placeholder);
+      players.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n;
+        opt.textContent = n;
+        sel.appendChild(opt);
+      });
+      sel.style.display = '';
+    });
+  }
+
+  prevXPicker.addEventListener('change', () => {
+    if (prevXPicker.value && !nameXInput.readOnly) {
+      nameXInput.value = prevXPicker.value;
+    }
+    prevXPicker.value = '';
+  });
+  prevOPicker.addEventListener('change', () => {
+    if (prevOPicker.value && !nameOInput.readOnly) {
+      nameOInput.value = prevOPicker.value;
+    }
+    prevOPicker.value = '';
+  });
+
+  function applyModeUi() {
+    if (config.mode === '1p') {
+      aiPanel.style.display = '';
+      const aiInput = config.aiMark === 'X' ? nameXInput : nameOInput;
+      const humanInput = config.aiMark === 'X' ? nameOInput : nameXInput;
+      const aiPicker = config.aiMark === 'X' ? prevXPicker : prevOPicker;
+      aiInput.value = 'AI Player';
+      aiInput.readOnly = true;
+      if (humanInput.value === 'AI Player' || !humanInput.value.trim()) {
+        humanInput.value = localStorage.getItem(LAST_PLAYER_KEY) || 'Player 1';
+      }
+      humanInput.readOnly = false;
+      aiPicker.style.display = 'none';
+      populatePrevPickers();
+      const humanPicker = config.aiMark === 'X' ? prevOPicker : prevXPicker;
+      if (humanPicker.options.length === 0) humanPicker.style.display = 'none';
+    } else {
+      aiPanel.style.display = 'none';
+      if (nameXInput.value === 'AI Player') nameXInput.value = localStorage.getItem(LAST_PLAYER_KEY) || 'Player 1';
+      if (nameOInput.value === 'AI Player') nameOInput.value = 'Player 2';
+      nameXInput.readOnly = false;
+      nameOInput.readOnly = false;
+      populatePrevPickers();
+    }
+  }
 
   function bindSegment(seg, key, onChange) {
     seg.querySelectorAll('button').forEach(b => {
@@ -689,16 +785,7 @@
 
   bindSegment(modeSeg, 'mode', (v) => {
     config.mode = v;
-    aiPanel.style.display = v === '1p' ? '' : 'none';
-    if (v === '1p') {
-      nameOInput.value = 'AI Player';
-      nameOInput.readOnly = true;
-      $('swapXOBtn').disabled = true;
-    } else {
-      if (nameOInput.value === 'AI Player') nameOInput.value = 'Player 2';
-      nameOInput.readOnly = false;
-      $('swapXOBtn').disabled = false;
-    }
+    applyModeUi();
   });
 
   bindSegment(aiSeg, 'diff', (v) => { config.aiDifficulty = v; });
@@ -714,12 +801,25 @@
     const a = nameXInput.value;
     nameXInput.value = nameOInput.value;
     nameOInput.value = a;
+    if (config.mode === '1p') {
+      config.aiMark = config.aiMark === 'X' ? 'O' : 'X';
+      applyModeUi();
+    }
   });
 
   $('startMatchBtn').addEventListener('click', () => {
     config.nameX = nameXInput.value.trim() || 'Player 1';
     config.nameO = nameOInput.value.trim() || (config.mode === '1p' ? 'AI Player' : 'Player 2');
-    if (config.mode === '1p') config.nameO = 'AI Player';
+    if (config.mode === '1p') {
+      if (config.aiMark === 'X') config.nameX = 'AI Player';
+      else config.nameO = 'AI Player';
+      const humanName = config.aiMark === 'X' ? config.nameO : config.nameX;
+      if (humanName && humanName !== 'AI Player') {
+        localStorage.setItem(LAST_PLAYER_KEY, humanName);
+      }
+    } else {
+      if (config.nameX) localStorage.setItem(LAST_PLAYER_KEY, config.nameX);
+    }
     const n = parseInt(matchTargetInput.value, 10);
     config.matchTarget = (n >= 1 && n <= 50) ? n : 10;
     if (config.challengeMode) {
@@ -847,7 +947,7 @@
   }
 
   function isAiTurn() {
-    return config.mode === '1p' && round.turn === 'O' && !round.over;
+    return config.mode === '1p' && round.turn === config.aiMark && !round.over;
   }
 
   function onCellClick(e) {
@@ -941,7 +1041,7 @@
       attacker: attackerMark, defender: defenderMark, idx,
       attackerMove: null, defenderMove: null,
       attackerIsAi: !!isAi,
-      defenderIsAi: (config.mode === '1p' && defenderMark === 'O'),
+      defenderIsAi: (config.mode === '1p' && defenderMark === config.aiMark),
     };
     logEvent('challengeStart', { attacker: attackerMark, defender: defenderMark, cell: idx });
     setStatus(
@@ -1195,9 +1295,9 @@
 
   function aiTakeTurn() {
     if (!isAiTurn()) return;
-    const move = chooseAiMove(round.board.slice(), 'O', config.aiDifficulty);
+    const move = chooseAiMove(round.board.slice(), config.aiMark, config.aiDifficulty);
     if (move == null) return;
-    handleCellTap(move.cell, 'O', /*isAi*/ true);
+    handleCellTap(move.cell, config.aiMark, /*isAi*/ true);
   }
 
   // Choose a board move. May target opponent cell to trigger a challenge.
@@ -1475,6 +1575,7 @@
   }
 
   // ============== Boot ==============
+  applyModeUi();
   updateModePill();
 })();
 </script>
