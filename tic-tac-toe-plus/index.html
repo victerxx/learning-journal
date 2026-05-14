@@ -178,6 +178,109 @@
     margin-top: 10px; color: var(--muted); font-size: 12px;
   }
 
+  /* Match layout: board + inline RPS side panel */
+  .match-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 760px) {
+    .app.match-mode { max-width: 920px; }
+    .match-layout { grid-template-columns: minmax(320px, 1fr) 320px; align-items: start; }
+  }
+  .board-col { min-width: 0; }
+  .rps-col {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    min-height: 80px;
+    display: flex; flex-direction: column;
+    gap: 10px;
+    transition: opacity 0.2s ease;
+  }
+  .rps-col.idle { opacity: 0.55; }
+  .rps-col h3 {
+    margin: 0; font-size: 14px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .rps-col .idle-msg {
+    color: var(--muted); font-size: 13px; line-height: 1.5;
+  }
+  .rps-col .actor-label {
+    color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .rps-col .picker-name { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .rps-col .pass-msg {
+    background: var(--panel-2);
+    border-radius: 10px; padding: 10px;
+    color: var(--text); font-size: 13px; text-align: center;
+  }
+
+  /* Reveal display */
+  .reveal-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px; align-items: center;
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 12px 8px;
+  }
+  .reveal-side { text-align: center; }
+  .reveal-side .who { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .reveal-side .throw {
+    font-size: 18px; font-weight: 800; margin-top: 4px;
+    padding: 6px 8px; border-radius: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    display: inline-block;
+    transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.4s ease;
+  }
+  .reveal-vs { font-size: 12px; color: var(--muted); }
+
+  .reveal-row.animating .throw { animation: throwIn 0.35s ease-out both; }
+  @keyframes throwIn {
+    0%   { transform: translateY(8px) scale(0.92); opacity: 0; }
+    100% { transform: translateY(0)   scale(1);    opacity: 1; }
+  }
+  .reveal-row.resolved .throw.lose {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  .reveal-row.resolved .throw.win {
+    box-shadow: 0 0 0 2px var(--good) inset, 0 0 18px rgba(122,240,168,0.35);
+    transform: scale(1.06);
+  }
+
+  .reveal-verdict {
+    background: var(--panel-2); border-radius: 10px; padding: 10px 12px;
+    font-size: 14px; line-height: 1.5;
+  }
+  .reveal-verdict .why { color: var(--muted); font-size: 13px; }
+  .reveal-verdict .who-wins {
+    margin-top: 4px; font-weight: 700;
+  }
+  .reveal-verdict .who-wins.win { color: var(--good); }
+  .reveal-verdict .who-wins.tie { color: var(--accent-2); }
+
+  /* Steal pulse on the board cell that just changed */
+  .cell.just-stolen {
+    animation: stolen 0.6s ease;
+  }
+  @keyframes stolen {
+    0%   { box-shadow: 0 0 0 0 rgba(255,184,107,0.6) inset; }
+    50%  { box-shadow: 0 0 0 4px rgba(255,184,107,0.6) inset; }
+    100% { box-shadow: 0 0 0 0 rgba(255,184,107,0)   inset; }
+  }
+  .cell.just-defended {
+    animation: defended 0.6s ease;
+  }
+  @keyframes defended {
+    0%, 100% { transform: scale(1); }
+    25% { transform: scale(0.94); }
+    50% { transform: scale(1.04); }
+    75% { transform: scale(0.97); }
+  }
+
   details.rules {
     margin-top: 14px; background: var(--panel);
     border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
@@ -378,15 +481,53 @@
       </div>
     </div>
 
-    <div id="board" class="board" aria-label="Game board"></div>
+    <div class="match-layout">
+      <div class="board-col">
+        <div id="board" class="board" aria-label="Game board"></div>
+        <div class="controls" style="margin-top: 12px;">
+          <button class="btn ghost" id="endMatchBtn">End Match</button>
+        </div>
+        <div class="footer-row">
+          <span id="turnsLabel">Turn 0</span>
+          <span id="rulesPill"></span>
+        </div>
+      </div>
 
-    <div class="controls" style="margin-top: 12px;">
-      <button class="btn ghost" id="endMatchBtn">End Match</button>
-    </div>
+      <aside id="rpsCol" class="rps-col idle" aria-live="polite">
+        <h3>Challenge Panel</h3>
+        <div class="idle-msg" id="rpsIdleMsg">
+          Tap an opponent's cell to challenge them to Rock-Paper-Scissors here.
+        </div>
 
-    <div class="footer-row">
-      <span id="turnsLabel">Turn 0</span>
-      <span id="rulesPill"></span>
+        <div id="rpsPicker" style="display:none;">
+          <div class="actor-label" id="rpsActorRole"></div>
+          <div class="picker-name" id="rpsActorName"></div>
+          <div class="rps-grid" id="rpsActorGrid"></div>
+        </div>
+
+        <div id="rpsPassBlock" class="pass-msg" style="display:none;">
+          <div id="rpsPassText"></div>
+          <button class="btn primary" id="rpsPassBtn" style="margin-top:8px;">Ready</button>
+        </div>
+
+        <div id="rpsReveal" style="display:none;">
+          <div class="reveal-row" id="revealRow">
+            <div class="reveal-side" id="revealAttacker">
+              <div class="who" id="revealAttackerWho"></div>
+              <div class="throw" id="revealAttackerThrow">?</div>
+            </div>
+            <div class="reveal-vs">VS</div>
+            <div class="reveal-side" id="revealDefender">
+              <div class="who" id="revealDefenderWho"></div>
+              <div class="throw" id="revealDefenderThrow">?</div>
+            </div>
+          </div>
+          <div class="reveal-verdict" id="revealVerdict" style="display:none;"></div>
+          <div style="display:flex; justify-content:flex-end;">
+            <button class="btn primary" id="rpsContinueBtn" style="display:none;">Continue →</button>
+          </div>
+        </div>
+      </aside>
     </div>
   </section>
 
@@ -430,30 +571,6 @@
     <p id="coinResult" style="text-align:center; font-weight:700; min-height:18px;"></p>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button class="btn primary" id="coinOkBtn" disabled>Continue</button>
-    </div>
-  </div>
-</div>
-
-<!-- RPS challenge modal -->
-<div class="modal-backdrop" id="rpsModal">
-  <div class="modal">
-    <h2 id="rpsTitle">Challenge!</h2>
-    <p id="rpsDesc">Pick your move.</p>
-    <div id="rpsActorBlock">
-      <div style="font-size:13px; color:var(--muted); margin-bottom:4px;">
-        <span id="rpsActorLabel"></span>
-      </div>
-      <div class="rps-grid" id="rpsActorGrid"></div>
-    </div>
-    <div id="rpsDefenderBlock">
-      <div style="font-size:13px; color:var(--muted); margin-bottom:4px;">
-        <span id="rpsDefenderLabel"></span>
-      </div>
-      <div class="rps-grid" id="rpsDefenderGrid"></div>
-    </div>
-    <div class="rps-result" id="rpsResult" style="display:none;"></div>
-    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
-      <button class="btn primary" id="rpsOkBtn" disabled>Continue</button>
     </div>
   </div>
 </div>
@@ -546,6 +663,8 @@
   };
   function showScreen(name) {
     for (const k of Object.keys(screens)) screens[k].classList.toggle('active', k === name);
+    const appEl = document.querySelector('.app');
+    if (appEl) appEl.classList.toggle('match-mode', name === 'match');
   }
 
   // ============== Setup screen ==============
@@ -670,6 +789,7 @@
     logEvent('roundStart', { round: match.round, rulesUnlocked: [...match.rulesUnlocked] });
     updateScoreboard();
     renderBoard();
+    showRpsIdle();
     setStatus('Flipping the coin…', '');
     runCoinFlip({
       title: `Round ${match.round} — Coin flip`,
@@ -705,6 +825,7 @@
       cell.addEventListener('click', onCellClick);
       if (round.over) cell.setAttribute('disabled', 'true');
       if (isAiTurn()) cell.setAttribute('disabled', 'true');
+      if (round.pendingChallenge) cell.setAttribute('disabled', 'true');
       boardEl.appendChild(cell);
     }
   }
@@ -732,6 +853,7 @@
   function onCellClick(e) {
     if (round.over) return;
     if (anyModalOpen()) return;
+    if (round.pendingChallenge) return;
     if (isAiTurn()) return;
     const idx = parseInt(e.currentTarget.dataset.idx, 10);
     handleCellTap(idx, round.turn, /*isAi*/ false);
@@ -822,77 +944,75 @@
       defenderIsAi: (config.mode === '1p' && defenderMark === 'O'),
     };
     logEvent('challengeStart', { attacker: attackerMark, defender: defenderMark, cell: idx });
-    openRpsModal();
+    setStatus(
+      `${displayName(attackerMark)} challenges ${displayName(defenderMark)} for cell ${idx + 1}.`,
+      `Rock-Paper-Scissors → resolve in the side panel.`,
+    );
+    beginAttackerPhase();
   }
 
-  const rpsModal = $('rpsModal');
-  const rpsTitle = $('rpsTitle');
-  const rpsActorLabel = $('rpsActorLabel');
-  const rpsDefenderLabel = $('rpsDefenderLabel');
-  const rpsActorBlock = $('rpsActorBlock');
-  const rpsDefenderBlock = $('rpsDefenderBlock');
+  // ----- Inline RPS panel (replaces old modal) -----
+  const rpsCol = $('rpsCol');
+  const rpsIdleMsg = $('rpsIdleMsg');
+  const rpsPicker = $('rpsPicker');
+  const rpsPassBlock = $('rpsPassBlock');
+  const rpsRevealEl = $('rpsReveal');
+  const rpsActorRole = $('rpsActorRole');
+  const rpsActorName = $('rpsActorName');
   const rpsActorGrid = $('rpsActorGrid');
-  const rpsDefenderGrid = $('rpsDefenderGrid');
-  const rpsResultEl = $('rpsResult');
-  const rpsOkBtn = $('rpsOkBtn');
+  const rpsPassText = $('rpsPassText');
+  const rpsPassBtn = $('rpsPassBtn');
+  const revealRow = $('revealRow');
+  const revealAttackerWho = $('revealAttackerWho');
+  const revealAttackerThrow = $('revealAttackerThrow');
+  const revealDefenderWho = $('revealDefenderWho');
+  const revealDefenderThrow = $('revealDefenderThrow');
+  const revealVerdict = $('revealVerdict');
+  const rpsContinueBtn = $('rpsContinueBtn');
 
-  function openRpsModal() {
-    const pc = round.pendingChallenge;
-    rpsTitle.textContent = `${displayName(pc.attacker)} challenges ${displayName(pc.defender)} for cell ${pc.idx + 1}`;
-    rpsActorLabel.textContent = `${displayName(pc.attacker)} (attacker) — pick your move:`;
-    rpsDefenderLabel.textContent = `${displayName(pc.defender)} (defender) — pick your move:`;
-    buildRpsGrid(rpsActorGrid, 'attacker', pc.attackerIsAi);
-    buildRpsGrid(rpsDefenderGrid, 'defender', pc.defenderIsAi);
-
-    // Hide AI side(s) until reveal time so the human can't see/spoil
-    rpsActorBlock.style.display    = pc.attackerIsAi ? 'none' : '';
-    rpsDefenderBlock.style.display = pc.defenderIsAi ? 'none' : '';
-
-    rpsResultEl.style.display = 'none';
-    rpsResultEl.innerHTML = '';
-    rpsOkBtn.disabled = true;
-    rpsOkBtn.onclick = closeRpsModal;
-    openModal(rpsModal);
-
-    // Auto-pick for AI participants
-    if (pc.attackerIsAi) {
-      const pick = aiPickRps(pc.attacker, pc.defender);
-      setTimeout(() => onRpsPick('attacker', pick, rpsActorGrid), 120);
-    }
-    if (pc.defenderIsAi) {
-      const pick = aiPickRps(pc.defender, pc.attacker);
-      setTimeout(() => onRpsPick('defender', pick, rpsDefenderGrid), 220);
-    }
+  function showRpsIdle() {
+    rpsCol.classList.add('idle');
+    rpsIdleMsg.style.display = '';
+    rpsPicker.style.display = 'none';
+    rpsPassBlock.style.display = 'none';
+    rpsRevealEl.style.display = 'none';
   }
 
-  function buildRpsGrid(container, role, disabledForAi) {
-    container.innerHTML = '';
+  function showRpsPicker(role, mark) {
+    rpsCol.classList.remove('idle');
+    rpsIdleMsg.style.display = 'none';
+    rpsPicker.style.display = '';
+    rpsPassBlock.style.display = 'none';
+    rpsRevealEl.style.display = 'none';
+    rpsActorRole.textContent = (role === 'attacker' ? 'Attacker' : 'Defender') + ' — pick your move';
+    rpsActorName.textContent = displayName(mark);
+    rpsActorGrid.innerHTML = '';
     for (const move of config.enabledRpsMoves) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'rps-btn';
       btn.innerHTML = `<span class="glyph">${RPS_LABEL[move]}</span>`;
-      btn.addEventListener('click', () => onRpsPick(role, move, container));
-      if (disabledForAi) btn.disabled = true;
-      container.appendChild(btn);
+      btn.addEventListener('click', () => onPickerChoose(role, move));
+      rpsActorGrid.appendChild(btn);
     }
   }
 
-  function onRpsPick(role, move, container) {
-    [...container.children].forEach(c => c.classList.remove('selected'));
-    const idx = config.enabledRpsMoves.indexOf(move);
-    if (idx >= 0) container.children[idx].classList.add('selected');
+  function showRpsPass(handoffToMark) {
+    rpsCol.classList.remove('idle');
+    rpsIdleMsg.style.display = 'none';
+    rpsPicker.style.display = 'none';
+    rpsPassBlock.style.display = '';
+    rpsRevealEl.style.display = 'none';
+    rpsPassText.textContent = `Pass the device to ${displayName(handoffToMark)}.`;
+    rpsPassBtn.onclick = () => beginDefenderPhase();
+  }
 
-    if (role === 'attacker') round.pendingChallenge.attackerMove = move;
-    else round.pendingChallenge.defenderMove = move;
-
-    if (round.pendingChallenge.attackerMove && round.pendingChallenge.defenderMove) {
-      [...rpsActorGrid.children, ...rpsDefenderGrid.children].forEach(b => b.disabled = true);
-      // Reveal both sides so the result block shows the matchup
-      rpsActorBlock.style.display = '';
-      rpsDefenderBlock.style.display = '';
-      resolveRps();
-    }
+  function showRpsReveal() {
+    rpsCol.classList.remove('idle');
+    rpsIdleMsg.style.display = 'none';
+    rpsPicker.style.display = 'none';
+    rpsPassBlock.style.display = 'none';
+    rpsRevealEl.style.display = '';
   }
 
   function rpsOutcome(a, b) {
@@ -902,77 +1022,133 @@
     return { outcome: 'tie', reason: 'Stalemate' };
   }
 
-  function resolveRps() {
+  function beginAttackerPhase() {
+    const pc = round.pendingChallenge;
+    if (pc.attackerIsAi) {
+      pc.attackerMove = aiPickRps(pc.attacker, pc.defender);
+      setTimeout(beginDefenderPhase, 280);
+    } else {
+      showRpsPicker('attacker', pc.attacker);
+    }
+  }
+
+  function beginDefenderPhase() {
+    const pc = round.pendingChallenge;
+    if (pc.defenderIsAi) {
+      pc.defenderMove = aiPickRps(pc.defender, pc.attacker);
+      setTimeout(beginRevealPhase, 280);
+    } else {
+      showRpsPicker('defender', pc.defender);
+    }
+  }
+
+  function onPickerChoose(role, move) {
+    const pc = round.pendingChallenge;
+    if (role === 'attacker') {
+      pc.attackerMove = move;
+      if (pc.defenderIsAi) {
+        pc.defenderMove = aiPickRps(pc.defender, pc.attacker);
+        setTimeout(beginRevealPhase, 250);
+      } else {
+        // Both human → require pass-device step before defender picks
+        showRpsPass(pc.defender);
+      }
+    } else {
+      pc.defenderMove = move;
+      setTimeout(beginRevealPhase, 100);
+    }
+  }
+
+  function beginRevealPhase() {
+    const pc = round.pendingChallenge;
+    showRpsReveal();
+    revealAttackerWho.textContent = displayName(pc.attacker) + ' (attacker)';
+    revealAttackerThrow.textContent = RPS_LABEL[pc.attackerMove];
+    revealAttackerThrow.className = 'throw';
+    revealDefenderWho.textContent = displayName(pc.defender) + ' (defender)';
+    revealDefenderThrow.textContent = RPS_LABEL[pc.defenderMove];
+    revealDefenderThrow.className = 'throw';
+    revealRow.classList.remove('animating', 'resolved');
+    revealVerdict.style.display = 'none';
+    revealVerdict.innerHTML = '';
+    rpsContinueBtn.style.display = 'none';
+    void revealRow.offsetWidth;
+    revealRow.classList.add('animating');
+    setTimeout(resolveAndShow, 520);
+  }
+
+  function resolveAndShow() {
     const pc = round.pendingChallenge;
     const { outcome, reason } = rpsOutcome(pc.attackerMove, pc.defenderMove);
-
-    rpsResultEl.style.display = 'block';
-
-    if (outcome === 'tie') {
-      rpsResultEl.innerHTML = renderRpsLines(pc.attackerMove, pc.defenderMove,
-        '<span class="verdict tie">Tie — flipping a coin to decide…</span>');
-      logEvent('rpsResolve', {
-        attacker: pc.attacker, defender: pc.defender,
-        attackerMove: pc.attackerMove, defenderMove: pc.defenderMove,
-        outcome: 'tie', reason,
-      });
-      setTimeout(() => {
-        closeModal(rpsModal);
-        runCoinFlip({
-          title: 'Tie-breaker coin flip',
-          desc: `Heads = ${displayName(pc.attacker)} (attacker) wins. Tails = ${displayName(pc.defender)} (defender) wins.`,
-        }).then((coin) => {
-          const winnerSide = coin === 'heads' ? 'attacker' : 'defender';
-          logEvent('rpsTieCoinFlip', { coin, winner: winnerSide });
-          applyChallengeOutcome(winnerSide, reason + ` · coin: ${coin}`);
-        });
-      }, 700);
-      return;
-    }
-
-    const winnerMark   = outcome === 'attacker' ? pc.attacker : pc.defender;
-    const loserMark    = outcome === 'attacker' ? pc.defender : pc.attacker;
-    const winnerMove   = outcome === 'attacker' ? pc.attackerMove : pc.defenderMove;
-    const loserMove    = outcome === 'attacker' ? pc.defenderMove : pc.attackerMove;
-    const verdict =
-      `<span class="verdict win">${RPS_LABEL[winnerMove]} beats ${RPS_LABEL[loserMove]} — ${reason}.</span>` +
-      `<span class="verdict win" style="margin-top:2px;">${displayName(winnerMark)} wins the challenge.</span>`;
-
-    rpsResultEl.innerHTML = renderRpsLines(pc.attackerMove, pc.defenderMove, verdict);
     logEvent('rpsResolve', {
       attacker: pc.attacker, defender: pc.defender,
       attackerMove: pc.attackerMove, defenderMove: pc.defenderMove,
       outcome, reason,
     });
 
-    rpsOkBtn.disabled = false;
-    rpsOkBtn.onclick = () => {
-      closeModal(rpsModal);
-      applyChallengeOutcome(outcome, reason);
-    };
+    if (outcome === 'tie') {
+      revealVerdict.style.display = '';
+      revealVerdict.innerHTML =
+        `<div class="why">${reason}.</div>` +
+        `<div class="who-wins tie">Tie — flipping a coin to decide…</div>`;
+      setTimeout(() => {
+        runCoinFlip({
+          title: 'Tie-breaker coin flip',
+          desc: `Heads = ${displayName(pc.attacker)} (attacker) wins. Tails = ${displayName(pc.defender)} (defender) wins.`,
+        }).then((coin) => {
+          const winnerSide = coin === 'heads' ? 'attacker' : 'defender';
+          logEvent('rpsTieCoinFlip', { coin, winner: winnerSide });
+          applyResolvedOutcome(winnerSide, reason + ' · coin: ' + coin, /*wasTie*/ true);
+        });
+      }, 700);
+      return;
+    }
+
+    applyResolvedOutcome(outcome, reason, false);
   }
 
-  function renderRpsLines(aMove, dMove, verdictHtml) {
-    const pc = round.pendingChallenge;
-    return `
-      <span class="line"><span class="who">${displayName(pc.attacker)} (attacker)</span> throws <b>${RPS_LABEL[aMove]}</b></span>
-      <span class="line"><span class="who">${displayName(pc.defender)} (defender)</span> throws <b>${RPS_LABEL[dMove]}</b></span>
-      ${verdictHtml}
-    `;
-  }
-
-  function applyChallengeOutcome(winnerSide, reason) {
+  function applyResolvedOutcome(winnerSide, reason, wasTie) {
     const pc = round.pendingChallenge;
     if (winnerSide === 'attacker') {
-      round.board[pc.idx] = pc.attacker;
-      logEvent('challengeEnd', { winner: pc.attacker, stolen: true, cell: pc.idx, reason });
-      setStatus(`${displayName(pc.attacker)} stole cell ${pc.idx + 1}. <span style="color:var(--muted);">${reason}.</span>`, '');
+      revealAttackerThrow.classList.add('win');
+      revealDefenderThrow.classList.add('lose');
     } else {
-      logEvent('challengeEnd', { winner: pc.defender, stolen: false, cell: pc.idx, reason });
-      setStatus(`${displayName(pc.defender)} defended cell ${pc.idx + 1}. ${displayName(pc.attacker)} forfeits the turn. <span style="color:var(--muted);">${reason}.</span>`, '');
+      revealAttackerThrow.classList.add('lose');
+      revealDefenderThrow.classList.add('win');
     }
-    round.pendingChallenge = null;
-    finishTurn();
+    revealRow.classList.add('resolved');
+
+    const winnerMark = winnerSide === 'attacker' ? pc.attacker : pc.defender;
+    const winnerMove = winnerSide === 'attacker' ? pc.attackerMove : pc.defenderMove;
+    const loserMove  = winnerSide === 'attacker' ? pc.defenderMove : pc.attackerMove;
+
+    revealVerdict.style.display = '';
+    revealVerdict.innerHTML =
+      `<div class="why">${RPS_LABEL[winnerMove]} beats ${RPS_LABEL[loserMove]}${wasTie ? '' : ' — ' + reason}.</div>` +
+      `<div class="who-wins win">${displayName(winnerMark)} ${winnerSide === 'attacker' ? 'steals the cell' : 'defends the cell'}.</div>`;
+
+    // Update the board simultaneously
+    if (winnerSide === 'attacker') {
+      round.board[pc.idx] = pc.attacker;
+      renderBoard();
+      const cellEl = boardEl.children[pc.idx];
+      if (cellEl) cellEl.classList.add('just-stolen');
+    } else {
+      const cellEl = boardEl.children[pc.idx];
+      if (cellEl) cellEl.classList.add('just-defended');
+    }
+    logEvent('challengeEnd', {
+      winner: winnerSide === 'attacker' ? pc.attacker : pc.defender,
+      stolen: winnerSide === 'attacker',
+      cell: pc.idx, reason,
+    });
+
+    rpsContinueBtn.style.display = '';
+    rpsContinueBtn.onclick = () => {
+      round.pendingChallenge = null;
+      showRpsIdle();
+      finishTurn();
+    };
   }
 
   // ============== Coin flip ==============
@@ -1116,8 +1292,8 @@
   function openModal(el) { el.classList.add('open'); }
   function closeModal(el) { el.classList.remove('open'); }
   function anyModalOpen() {
-    return [coinModal, rpsModal, roundModal, briefModal]
-      .some(m => m.classList.contains('open'));
+    return [coinModal, roundModal, briefModal]
+      .some(m => m && m.classList.contains('open'));
   }
 
   // ============== Event log ==============
