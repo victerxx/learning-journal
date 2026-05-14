@@ -69,6 +69,27 @@
     font-size: 14px;
     min-width: 0;
   }
+  input[type="text"][readonly] { color: var(--muted); }
+
+  .player-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 0;
+  }
+  .mark-label {
+    font-size: 30px; font-weight: 800;
+    width: 40px; text-align: center; line-height: 1;
+    flex: 0 0 auto;
+  }
+  .mark-label.mark-x { color: var(--x); }
+  .mark-label.mark-o { color: var(--o); }
+  .prev-picker {
+    flex: 0 0 auto; width: auto; max-width: 140px;
+    padding: 9px 8px; font-size: 13px;
+  }
+  .swap-row {
+    display: flex; justify-content: center; padding: 4px 0;
+  }
+  .swap-row .btn { padding: 6px 14px; font-size: 13px; }
   input[type="text"]:focus, select:focus, input[type="number"]:focus {
     outline: none; border-color: var(--accent);
   }
@@ -79,8 +100,9 @@
   }
   .seg button {
     flex: 1; background: transparent; color: var(--muted);
-    border: none; padding: 8px 10px; border-radius: 8px;
+    border: none; padding: 8px 6px; border-radius: 8px;
     font-size: 13px; cursor: pointer; font-weight: 600;
+    min-width: 0; white-space: nowrap;
   }
   .seg button.on { background: var(--accent); color: #07142a; }
 
@@ -397,28 +419,32 @@
 
     <div class="panel">
       <h2>Players</h2>
-      <label class="row">
-        <span class="lbl">X plays as</span>
+      <div class="player-row">
+        <span class="mark-label mark-x">X</span>
         <input id="nameX" type="text" maxlength="20" value="Player 1" />
-      </label>
-      <label class="row">
-        <span class="lbl">O plays as</span>
+        <select id="prevX" class="prev-picker" aria-label="Previous players (X)" style="display:none;"></select>
+      </div>
+      <div class="swap-row">
+        <button class="btn ghost" id="swapXOBtn">⇅ Swap X / O</button>
+      </div>
+      <div class="player-row">
+        <span class="mark-label mark-o">O</span>
         <input id="nameO" type="text" maxlength="20" value="Player 2" />
-      </label>
-      <div class="controls" style="margin-top: 6px;">
-        <button class="btn ghost" id="swapXOBtn">Swap X / O</button>
+        <select id="prevO" class="prev-picker" aria-label="Previous players (O)" style="display:none;"></select>
       </div>
     </div>
 
     <div class="panel" id="aiPanel" style="display:none;">
       <h2>AI Difficulty</h2>
       <div class="seg" id="aiSeg">
+        <button data-diff="random">Random</button>
         <button data-diff="easy">Easy</button>
         <button data-diff="medium" class="on">Medium</button>
         <button data-diff="hard">Hard</button>
+        <button data-diff="master">Master</button>
       </div>
-      <div class="help-text">
-        Easy plays randomly. Medium blocks obvious wins. Hard plays optimally.
+      <div class="help-text" id="aiHelp">
+        Medium: blocks obvious wins, prefers center and corners.
       </div>
     </div>
 
@@ -484,8 +510,20 @@
     <div class="match-layout">
       <div class="board-col">
         <div id="board" class="board" aria-label="Game board"></div>
-        <div class="controls" style="margin-top: 12px;">
+        <div class="controls" id="matchControls" style="margin-top: 12px;">
           <button class="btn ghost" id="endMatchBtn">End Match</button>
+        </div>
+        <div class="controls" id="matchOverControls" style="margin-top: 12px; display:none;">
+          <button class="btn primary" id="rematchBtn">Rematch</button>
+          <button class="btn ghost" id="backToSetupBtn">Setup Screen</button>
+        </div>
+        <div class="panel" id="matchOverSummaryPanel" style="display:none; margin-top: 12px;">
+          <h2>Match Over</h2>
+          <div id="matchOverSummary" style="font-size:15px; line-height:1.5;"></div>
+        </div>
+        <div class="panel" id="metricsPanel" style="display:none; margin-top: 12px;">
+          <h2>Your Progress</h2>
+          <div id="metricsBody" style="font-size:14px; line-height:1.6;"></div>
         </div>
         <div class="footer-row">
           <span id="turnsLabel">Turn 0</span>
@@ -528,22 +566,6 @@
           </div>
         </div>
       </aside>
-    </div>
-  </section>
-
-  <!-- ============== MATCH OVER SCREEN ============== -->
-  <section id="matchOverScreen" class="screen">
-    <div class="panel">
-      <h2>Match Over</h2>
-      <div id="matchOverSummary" style="font-size:16px; line-height:1.5;"></div>
-    </div>
-    <div class="panel" id="metricsPanel" style="display:none;">
-      <h2>Your Progress</h2>
-      <div id="metricsBody" style="font-size:14px; line-height:1.6;"></div>
-    </div>
-    <div class="controls">
-      <button class="btn primary" id="rematchBtn">Rematch</button>
-      <button class="btn ghost" id="backToSetupBtn">Setup Screen</button>
     </div>
   </section>
 
@@ -620,12 +642,14 @@
     [0,4,8],[2,4,6],
   ];
   const PROFILE_PREFIX = 'ttp.profile.';
+  const LAST_PLAYER_KEY = 'ttp.lastPlayer';
   const MEASUREMENT_WINDOW = 20;
 
   // ============== State ==============
   const config = {
     mode: '2p',            // '2p' | '1p'
     aiDifficulty: 'medium',
+    aiMark: 'O',           // which mark the AI plays in 1p mode
     nameX: 'Player 1',
     nameO: 'Player 2',
     challengeMode: false,
@@ -658,7 +682,6 @@
   const screens = {
     setup: $('setupScreen'),
     match: $('matchScreen'),
-    over:  $('matchOverScreen'),
     profile: $('profileScreen'),
   };
   function showScreen(name) {
@@ -673,9 +696,85 @@
   const aiPanel = $('aiPanel');
   const nameXInput = $('nameX');
   const nameOInput = $('nameO');
+  const prevXPicker = $('prevX');
+  const prevOPicker = $('prevO');
   const challengeSeg = $('challengeSeg');
   const challengeHelp = $('challengeHelp');
   const matchTargetInput = $('matchTarget');
+
+  function getKnownPlayers() {
+    const names = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(PROFILE_PREFIX)) {
+        names.push(key.slice(PROFILE_PREFIX.length));
+      }
+    }
+    return names.sort((a, b) => a.localeCompare(b));
+  }
+
+  function populatePrevPickers() {
+    const players = getKnownPlayers();
+    [prevXPicker, prevOPicker].forEach(sel => {
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      if (!players.length) { sel.style.display = 'none'; return; }
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Previous players';
+      sel.appendChild(placeholder);
+      players.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n;
+        opt.textContent = n;
+        sel.appendChild(opt);
+      });
+      sel.style.display = '';
+    });
+  }
+
+  prevXPicker.addEventListener('change', () => {
+    if (prevXPicker.value && !nameXInput.readOnly) {
+      nameXInput.value = prevXPicker.value;
+    }
+    prevXPicker.value = '';
+  });
+  prevOPicker.addEventListener('change', () => {
+    if (prevOPicker.value && !nameOInput.readOnly) {
+      nameOInput.value = prevOPicker.value;
+    }
+    prevOPicker.value = '';
+  });
+
+  function applyModeUi() {
+    if (config.mode === '1p') {
+      if (config.challengeMode) {
+        aiPanel.style.display = 'none';
+        config.aiDifficulty = 'master';
+      } else {
+        aiPanel.style.display = '';
+      }
+      const aiInput = config.aiMark === 'X' ? nameXInput : nameOInput;
+      const humanInput = config.aiMark === 'X' ? nameOInput : nameXInput;
+      const aiPicker = config.aiMark === 'X' ? prevXPicker : prevOPicker;
+      aiInput.value = 'AI Player';
+      aiInput.readOnly = true;
+      if (humanInput.value === 'AI Player' || !humanInput.value.trim()) {
+        humanInput.value = localStorage.getItem(LAST_PLAYER_KEY) || 'Player 1';
+      }
+      humanInput.readOnly = false;
+      aiPicker.style.display = 'none';
+      populatePrevPickers();
+      const humanPicker = config.aiMark === 'X' ? prevOPicker : prevXPicker;
+      if (humanPicker.options.length === 0) humanPicker.style.display = 'none';
+    } else {
+      aiPanel.style.display = 'none';
+      if (nameXInput.value === 'AI Player') nameXInput.value = localStorage.getItem(LAST_PLAYER_KEY) || 'Player 1';
+      if (nameOInput.value === 'AI Player') nameOInput.value = 'Player 2';
+      nameXInput.readOnly = false;
+      nameOInput.readOnly = false;
+      populatePrevPickers();
+    }
+  }
 
   function bindSegment(seg, key, onChange) {
     seg.querySelectorAll('button').forEach(b => {
@@ -689,37 +788,52 @@
 
   bindSegment(modeSeg, 'mode', (v) => {
     config.mode = v;
-    aiPanel.style.display = v === '1p' ? '' : 'none';
-    if (v === '1p') {
-      nameOInput.value = 'AI Player';
-      nameOInput.readOnly = true;
-      $('swapXOBtn').disabled = true;
-    } else {
-      if (nameOInput.value === 'AI Player') nameOInput.value = 'Player 2';
-      nameOInput.readOnly = false;
-      $('swapXOBtn').disabled = false;
-    }
+    applyModeUi();
   });
 
-  bindSegment(aiSeg, 'diff', (v) => { config.aiDifficulty = v; });
+  const AI_HELP = {
+    random: 'Random: picks any empty cell. No strategy.',
+    easy:   'Easy: takes an obvious win, but otherwise random.',
+    medium: 'Medium: blocks obvious wins, prefers center and corners.',
+    hard:   'Hard: plays well but occasionally slips.',
+    master: 'Master: plays optimally. You can only draw or lose.',
+  };
+  bindSegment(aiSeg, 'diff', (v) => {
+    config.aiDifficulty = v;
+    $('aiHelp').textContent = AI_HELP[v] || '';
+  });
 
   bindSegment(challengeSeg, 'cm', (v) => {
     config.challengeMode = (v === 'challenge');
     challengeHelp.textContent = config.challengeMode
-      ? 'Challenge: your first 20 games measure how fast you adapt. Try your best from game 1.'
+      ? 'Challenge: locked to Master AI. Your first 20 games measure how fast you adapt.'
       : 'Casual: play for fun. Your games are still saved so you can review them later.';
+    applyModeUi();
   });
 
   $('swapXOBtn').addEventListener('click', () => {
     const a = nameXInput.value;
     nameXInput.value = nameOInput.value;
     nameOInput.value = a;
+    if (config.mode === '1p') {
+      config.aiMark = config.aiMark === 'X' ? 'O' : 'X';
+      applyModeUi();
+    }
   });
 
   $('startMatchBtn').addEventListener('click', () => {
     config.nameX = nameXInput.value.trim() || 'Player 1';
     config.nameO = nameOInput.value.trim() || (config.mode === '1p' ? 'AI Player' : 'Player 2');
-    if (config.mode === '1p') config.nameO = 'AI Player';
+    if (config.mode === '1p') {
+      if (config.aiMark === 'X') config.nameX = 'AI Player';
+      else config.nameO = 'AI Player';
+      const humanName = config.aiMark === 'X' ? config.nameO : config.nameX;
+      if (humanName && humanName !== 'AI Player') {
+        localStorage.setItem(LAST_PLAYER_KEY, humanName);
+      }
+    } else {
+      if (config.nameX) localStorage.setItem(LAST_PLAYER_KEY, config.nameX);
+    }
     const n = parseInt(matchTargetInput.value, 10);
     config.matchTarget = (n >= 1 && n <= 50) ? n : 10;
     if (config.challengeMode) {
@@ -747,6 +861,10 @@
     match.started = true;
     match.matchId = newId();
     match.history = [];
+    $('matchControls').style.display = '';
+    $('matchOverControls').style.display = 'none';
+    $('matchOverSummaryPanel').style.display = 'none';
+    $('metricsPanel').style.display = 'none';
     updateScoreboard();
     updateModePill();
     showScreen('match');
@@ -757,7 +875,9 @@
     match.started = false;
     saveMatchToProfiles();
     renderMatchOver(reason);
-    showScreen('over');
+    $('matchControls').style.display = 'none';
+    $('matchOverControls').style.display = '';
+    $('matchOverSummaryPanel').style.display = '';
   }
 
   function updateModePill() {
@@ -794,6 +914,8 @@
     runCoinFlip({
       title: `Round ${match.round} — Coin flip`,
       desc: `Heads = ${config.nameX} (X) starts. Tails = ${config.nameO} (O) starts.`,
+      headsWinner: config.nameX,
+      tailsWinner: config.nameO,
     }).then((result) => {
       round.turn = (result === 'heads') ? 'X' : 'O';
       logEvent('coinFlip', { result, firstPlayer: round.turn });
@@ -847,7 +969,7 @@
   }
 
   function isAiTurn() {
-    return config.mode === '1p' && round.turn === 'O' && !round.over;
+    return config.mode === '1p' && round.turn === config.aiMark && !round.over;
   }
 
   function onCellClick(e) {
@@ -941,7 +1063,7 @@
       attacker: attackerMark, defender: defenderMark, idx,
       attackerMove: null, defenderMove: null,
       attackerIsAi: !!isAi,
-      defenderIsAi: (config.mode === '1p' && defenderMark === 'O'),
+      defenderIsAi: (config.mode === '1p' && defenderMark === config.aiMark),
     };
     logEvent('challengeStart', { attacker: attackerMark, defender: defenderMark, cell: idx });
     setStatus(
@@ -1095,6 +1217,8 @@
         runCoinFlip({
           title: 'Tie-breaker coin flip',
           desc: `Heads = ${displayName(pc.attacker)} (attacker) wins. Tails = ${displayName(pc.defender)} (defender) wins.`,
+          headsWinner: displayName(pc.attacker),
+          tailsWinner: displayName(pc.defender),
         }).then((coin) => {
           const winnerSide = coin === 'heads' ? 'attacker' : 'defender';
           logEvent('rpsTieCoinFlip', { coin, winner: winnerSide });
@@ -1153,11 +1277,11 @@
 
   // ============== Coin flip ==============
   const coinModal = $('coinModal');
-  function runCoinFlip({ title, desc }) {
+  function runCoinFlip({ title, desc, headsWinner, tailsWinner }) {
     return new Promise((resolve) => {
       $('coinTitle').textContent = title;
       $('coinDesc').textContent = desc;
-      $('coinResult').textContent = '';
+      $('coinResult').innerHTML = '';
       const face = $('coinFace');
       face.textContent = '?';
       $('coinOkBtn').disabled = true;
@@ -1168,7 +1292,14 @@
       const result = Math.random() < 0.5 ? 'heads' : 'tails';
       setTimeout(() => {
         face.textContent = result === 'heads' ? 'H' : 'T';
-        $('coinResult').textContent = result.toUpperCase();
+        const winner = result === 'heads' ? headsWinner : tailsWinner;
+        const label = result.toUpperCase();
+        if (winner) {
+          $('coinResult').innerHTML =
+            `${label} — <b>${escapeHtml(winner)}</b> wins the coin flip.`;
+        } else {
+          $('coinResult').textContent = label;
+        }
         $('coinOkBtn').disabled = false;
         $('coinOkBtn').onclick = () => {
           closeModal(coinModal);
@@ -1195,9 +1326,9 @@
 
   function aiTakeTurn() {
     if (!isAiTurn()) return;
-    const move = chooseAiMove(round.board.slice(), 'O', config.aiDifficulty);
+    const move = chooseAiMove(round.board.slice(), config.aiMark, config.aiDifficulty);
     if (move == null) return;
-    handleCellTap(move.cell, 'O', /*isAi*/ true);
+    handleCellTap(move.cell, config.aiMark, /*isAi*/ true);
   }
 
   // Choose a board move. May target opponent cell to trigger a challenge.
@@ -1206,42 +1337,46 @@
     const emptyCells = board.map((v, i) => v ? -1 : i).filter(i => i >= 0);
     const oppCells = board.map((v, i) => v === opp ? i : -1).filter(i => i >= 0);
 
-    if (level === 'easy') {
-      // Random empty cell; never challenges
+    if (level === 'random') {
       return emptyCells.length ? { cell: pickRandom(emptyCells) } : null;
     }
 
-    // Win if possible
+    // Win if possible (all levels above random)
     for (const i of emptyCells) {
       const b = board.slice(); b[i] = me;
       if (findWinLine(b)) return { cell: i };
     }
-    // Block opponent immediate win
+
+    if (level === 'easy') {
+      return emptyCells.length ? { cell: pickRandom(emptyCells) } : null;
+    }
+
+    // Block opponent immediate win (medium and up)
     for (const i of emptyCells) {
       const b = board.slice(); b[i] = opp;
-      if (findWinLine(b)) {
-        if (level === 'hard' || level === 'medium') return { cell: i };
-      }
+      if (findWinLine(b)) return { cell: i };
     }
 
     if (level === 'medium') {
-      // Prefer center, then corners, then edges
       const order = [4, 0, 2, 6, 8, 1, 3, 5, 7].filter(i => emptyCells.includes(i));
       if (order.length) return { cell: order[0] };
-      // No empty: try to challenge an opp cell to deny a win
       if (oppCells.length) {
         for (const i of oppCells) {
           const b = board.slice(); b[i] = me;
-          if (findWinLine(b)) return { cell: i }; // steal would win
+          if (findWinLine(b)) return { cell: i };
         }
         return { cell: pickRandom(oppCells) };
       }
       return null;
     }
 
-    // hard: minimax (treat challenges as 50/50 outcomes, simplified: skip challenges in lookahead)
-    // Use minimax on empty cells only; if no empty cell would help, consider a challenge.
+    // hard: master logic 70% of the time, otherwise a heuristic move
+    // master: full minimax
     if (emptyCells.length) {
+      if (level === 'hard' && Math.random() < 0.30) {
+        const order = [4, 0, 2, 6, 8, 1, 3, 5, 7].filter(i => emptyCells.includes(i));
+        if (order.length) return { cell: order[0] };
+      }
       let bestScore = -Infinity, bestCell = emptyCells[0];
       for (const i of emptyCells) {
         const b = board.slice(); b[i] = me;
@@ -1475,6 +1610,7 @@
   }
 
   // ============== Boot ==============
+  applyModeUi();
   updateModePill();
 })();
 </script>
